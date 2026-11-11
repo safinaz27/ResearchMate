@@ -26,6 +26,7 @@ from researchmate.config import (
     ensure_directories,
     get_settings,
 )
+from researchmate.db.session import create_db_engine, create_session_factory, init_db
 from researchmate.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -46,10 +47,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Runs once when the server starts (and once per TestClient context).
         configure_runtime_environment(settings)
         ensure_directories(settings)
-        logger.info("%s %s started (environment=%s, data_dir=%s)", settings.app_name,
-                    __version__, settings.environment, settings.data_dir)
-        yield
-        logger.info("%s stopped", settings.app_name)
+        engine = create_db_engine(settings)
+        init_db(engine)
+        app.state.session_factory = create_session_factory(engine)
+        logger.info("%s %s started (environment=%s, data_dir=%s, database=%s)",
+                    settings.app_name, __version__, settings.environment, settings.data_dir,
+                    engine.url.render_as_string(hide_password=True))
+        try:
+            yield
+        finally:
+            # Close pooled connections; on Windows an open SQLite file can't be deleted.
+            engine.dispose()
+            logger.info("%s stopped", settings.app_name)
 
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.state.settings = settings
