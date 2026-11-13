@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from researchmate.db.models import Chunk, Document, DocumentStatus, FileType
+from researchmate.db.models import Chunk, Document, DocumentStatus, FileType, new_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,9 +42,15 @@ class DocumentRepository:
         file_path: str,
         file_size_bytes: int,
         sha256: str,
+        document_id: str | None = None,
     ) -> Document:
-        """Insert a document with status ``pending``; ``id`` is available immediately."""
+        """Insert a document with status ``pending``; ``id`` is available immediately.
+
+        ``document_id`` may be chosen by the caller, e.g. when the stored file
+        is already named after it; otherwise a new UUID is generated.
+        """
         document = Document(
+            id=document_id or new_id(),
             filename=filename,
             file_type=file_type,
             file_path=file_path,
