@@ -61,14 +61,14 @@ def stored_files(settings: Settings) -> list[str]:
 
 # --- happy path ------------------------------------------------------------------
 
-def test_upload_pdf_stores_file_and_pending_row(client: TestClient, settings: Settings) -> None:
+def test_upload_pdf_stores_file_and_row(client: TestClient, settings: Settings) -> None:
     content = make_pdf()
     response = upload(client, "Attention Is All You Need.pdf", content, "application/pdf")
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["filename"] == "Attention Is All You Need.pdf"
     assert body["file_type"] == "pdf"
-    assert body["status"] == "pending"
+    assert body["status"] == "ready"  # processed during the request (Step 6)
     assert body["file_size_bytes"] == len(content)
     assert body["chunk_count"] == 0
     assert "file_path" not in body and "sha256" not in body  # internals not exposed
