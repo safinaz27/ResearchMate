@@ -121,6 +121,11 @@ class Settings(BaseSettings):
         return self.data_dir / "hf_cache"
 
     @property
+    def tmp_dir(self) -> Path:
+        """Temp files (e.g. uploads being received) stay on the project drive, not C:."""
+        return self.data_dir / "tmp"
+
+    @property
     def sqlite_path(self) -> Path:
         return self.data_dir / "researchmate.db"
 
@@ -141,7 +146,7 @@ class Settings(BaseSettings):
 def ensure_directories(settings: Settings) -> None:
     """Create the runtime data folders if they do not exist yet."""
     for path in (settings.data_dir, settings.uploads_dir, settings.chroma_dir,
-                 settings.hf_cache_dir):
+                 settings.hf_cache_dir, settings.tmp_dir):
         path.mkdir(parents=True, exist_ok=True)
 
 
