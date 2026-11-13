@@ -14,10 +14,10 @@ from sqlalchemy.orm import Session
 
 from researchmate import __version__
 from researchmate.api.dependencies import get_db_session
-from researchmate.api.errors import AppError
 from researchmate.api.main import create_app
 from researchmate.db.models import FileType
 from researchmate.db.repositories import DocumentRepository
+from researchmate.errors import AppError
 
 FAKE_KEY = "gsk_test0000000000000000000000"
 
