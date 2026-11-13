@@ -20,6 +20,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from researchmate.errors import AppError
+
 logger = logging.getLogger(__name__)
 
 # Stable codes for the HTTP errors that FastAPI/Starlette raise themselves.
@@ -30,22 +32,6 @@ _HTTP_STATUS_CODES: dict[int, str] = {
     413: "payload_too_large",
     415: "unsupported_media_type",
 }
-
-
-class AppError(Exception):
-    """Base class for errors our own code raises on purpose.
-
-    Later steps subclass it (e.g. an unsupported file type -> 415) so business
-    logic can fail with a meaningful status without importing FastAPI.
-    """
-
-    status_code: int = 400
-    code: str = "bad_request"
-
-    def __init__(self, message: str, *, details: Any = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.details = details
 
 
 def error_response(status_code: int, code: str, message: str, details: Any = None) -> JSONResponse:
