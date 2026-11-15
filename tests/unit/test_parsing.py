@@ -188,8 +188,9 @@ def settings(make_settings, tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def client(settings: Settings) -> Iterator[TestClient]:
-    with TestClient(create_app(settings), raise_server_exceptions=False) as test_client:
+def client(settings: Settings, token_counter) -> Iterator[TestClient]:
+    app = create_app(settings, token_counter=token_counter)
+    with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
 
 
