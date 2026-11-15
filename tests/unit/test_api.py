@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from researchmate import __version__
-from researchmate.api.dependencies import get_db_session
+from researchmate.api.dependencies import DbSession
 from researchmate.api.main import create_app
 from researchmate.db.models import FileType
 from researchmate.db.repositories import DocumentRepository
@@ -43,9 +42,7 @@ def _add_test_routes(app: FastAPI) -> None:
         return {"item_id": item_id}
 
     @app.post("/_test/documents")
-    def create_document(
-        session: Annotated[Session, Depends(get_db_session)], fail: bool = False
-    ) -> dict[str, str]:
+    def create_document(session: DbSession, fail: bool = False) -> dict[str, str]:
         doc = DocumentRepository(session).create(
             filename="x.pdf", file_type=FileType.PDF, file_path="uploads/x.pdf",
             file_size_bytes=1, sha256="a" * 64,
@@ -55,7 +52,7 @@ def _add_test_routes(app: FastAPI) -> None:
         return {"id": doc.id}
 
     @app.get("/_test/documents/count")
-    def count_documents(session: Annotated[Session, Depends(get_db_session)]) -> dict[str, int]:
+    def count_documents(session: DbSession) -> dict[str, int]:
         return {"count": len(DocumentRepository(session).list_all())}
 
 
@@ -153,3 +150,37 @@ def test_unexpected_error_is_generic_500_and_logged(
     }
     assert "secret internals" not in response.text  # no internals leak to the client
     assert any("Unhandled error on GET /_test/crash" in r.getMessage() for r in caplog.records)
+
+
+def test_commit_happens_before_the_response_is_sent(client: TestClient) -> None:
+    """Regression: the client must never see success for data that isn't committed yet.
+
+    TestClient waits for the whole request cycle (including dependency cleanup),
+    so this drives the ASGI app directly and counts committed rows, from a
+    separate session, at the moment the response starts.
+    """
+    app = client.app
+    seen_at_response_start: list[int] = []
+
+    async def receive() -> dict:
+        receive.calls += 1  # type: ignore[attr-defined]
+        if receive.calls == 1:  # type: ignore[attr-defined]
+            return {"type": "http.request", "body": b"", "more_body": False}
+        return {"type": "http.disconnect"}
+
+    receive.calls = 0  # type: ignore[attr-defined]
+
+    async def send(message: dict) -> None:
+        if message["type"] == "http.response.start":
+            with app.state.session_factory() as other_session:
+                seen_at_response_start.append(len(DocumentRepository(other_session).list_all()))
+
+    scope = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+        "method": "POST", "scheme": "http", "path": "/_test/documents",
+        "raw_path": b"/_test/documents", "query_string": b"", "root_path": "",
+        "headers": [(b"host", b"testserver"), (b"content-length", b"0")],
+        "client": ("testclient", 50000), "server": ("testserver", 80), "state": {},
+    }
+    asyncio.run(app(scope, receive, send))
+    assert seen_at_response_start == [1]
