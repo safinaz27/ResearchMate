@@ -45,8 +45,8 @@ def settings(make_settings, tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def client(settings: Settings) -> Iterator[TestClient]:
-    with TestClient(create_app(settings)) as test_client:
+def client(settings: Settings, token_counter) -> Iterator[TestClient]:
+    with TestClient(create_app(settings, token_counter=token_counter)) as test_client:
         yield test_client
 
 
@@ -70,7 +70,7 @@ def test_upload_pdf_stores_file_and_row(client: TestClient, settings: Settings) 
     assert body["file_type"] == "pdf"
     assert body["status"] == "ready"  # processed during the request (Step 6)
     assert body["file_size_bytes"] == len(content)
-    assert body["chunk_count"] == 0
+    assert body["chunk_count"] == 1  # chunked during the request (Step 7)
     assert "file_path" not in body and "sha256" not in body  # internals not exposed
     # Stored under a server-chosen name, byte-for-byte identical, no .part left behind.
     assert stored_files(settings) == [f"{body['id']}.pdf"]
